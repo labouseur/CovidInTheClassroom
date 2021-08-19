@@ -35,9 +35,10 @@ Testing 125 groups of 8.
 --Actual Results--
   false negatives: 0 (test accuracy 100%)
   false positives: 0 (test accuracy 100%)
-  245 tests used to detect 20 of 20 actual infections.
-  used 1 tests 105 times, which covered 84% of the groups (expected 85.0275% = 107 occurrences; 1.86916% error.)
-  used 7 tests 20 times, which covered 16% of the groups (expected 13.9819% = 18 occurrences; 11.1111% error.)
+  241 tests used to detect 20 of 20 actual infections.
+  used 1 tests 107 times, which covered 85.6% of the groups (expected 85.0275% = 107 occurrences; 0% error.)
+  used 7 tests 16 times, which covered 12.8% of the groups (expected 13.9819% = 18 occurrences; 11.1111% error.)
+  used 11 tests 2 times, which covered 1.6% of the groups (expected 0.990641% = 2 occurrences; 0% error.)
 ------------------------------------------------------------------
   Total 100%
 ```
