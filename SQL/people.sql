@@ -26,14 +26,14 @@ create table People (
    empPhone           text,
    FTE                text, 
    isRemoteEmp        boolean, 
-	zipCode            text,
+   zipCode            text,
  primary key (pid)
 );
 
 -- Look at the data from the import table to People
 select * 
 from People
-where pid in (select cwid from importTable)
+where pid in (select cwid from importTable);
 
 
 -- Do some counts. Make a Venn diagram to check the numbers.
@@ -67,18 +67,18 @@ from People
 where (not isStudent) and isEmployee;
 
 -- People who are both a student AND an employee BY fte
-select fte, count(pid)
+select FTE, count(pid)
 from People 
 where isStudent 
   and isEmployee
-group by fte;
+group by FTE;
 
 -- Employees who ARE NOT students who DO NOT live on campus
 select count(pid)
 from People 
 where (not isStudent) 
   and isEmployee
-  and (not livesOnCampus)
+  and (not livesOnCampus);
 
 -- Counts for those who don't and do live on campus.
 select livesOnCampus, count(pid) 
