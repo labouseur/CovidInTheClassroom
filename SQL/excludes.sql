@@ -7,7 +7,7 @@ create table Excludes (
    pid          text not null,
    excludeStart date not null,
    excludeStop  date,
-	notes        text,
+   notes        text,
    updated      date not null,
  primary key (pid)
 );
@@ -18,7 +18,7 @@ as
 select pid
 from Excludes
 where excludeStop is null
-  or now()::date between excludeStart and excludeStop;  -- These are DATE and not TIMESTAMPs, so this between should be fine.
+   or now()::date between excludeStart and excludeStop;  -- These are DATE and not TIMESTAMPs, so this between should be fine.
 
 -- Check the table.
 select *
@@ -67,7 +67,7 @@ order by excludeStop ASC;
 -- for people in the People table
 select count(pid), 
        extract(month from excludeStop)::text || ' - ' || 
-		 coalesce( to_char( to_date((extract(month from excludeStop)::text), 'MM'), 'Month'), 'No re-inclusion date') as "ReIncludeMonth"
+       coalesce( to_char( to_date((extract(month from excludeStop)::text), 'MM'), 'Month'), 'No re-inclusion date') as "ReIncludeMonth"
 from Excludes
 where pid in (select pid from People)
 group by "ReIncludeMonth"
