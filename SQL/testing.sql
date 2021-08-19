@@ -65,315 +65,315 @@ group by monitorGroup;
 
 -- drop function assignTestTimes(text, bool, date);
 create or replace function assignTestTimes(theGroup       text, 
-														 resetWorkTable bool, 
-														 startDate      date) 
+                                           resetWorkTable bool, 
+                                           startDate      date) 
   returns table (
       monitorGroup       text,
-	   inviteDate         timestamp,
-	   inviteDateText     text,
-	   pid                text,
+      inviteDate         timestamp,
+      inviteDateText     text,
+      pid                text,
       firstName          text, 
       lastName           text, 
       email1             text,
       email2             text,
       phone1             text,
       phone2             text,
-	   isStudent          boolean,
+      isStudent          boolean,
       isEmployee         boolean,
-	   livesOnCampus      boolean,
- 	   major              text,
+      livesOnCampus      boolean,
+      major              text,
       dormBuilding       text,
       dormFloor          int,
       dormRoom           text,
       empDept            text,
       empTitle           text, 
       empPhone           text
-	) 
+   ) 
 language plpgsql
 as
 $$
 declare
    groupSize         int;
    groupTime         int;   
-	groupCount        int;
+   groupCount        int;
    startTimeWeekDAY  time without time zone;
    startTimeWeekEND  time without time zone;
-	peopleInThisGroup int;
-	dailyTestingLoad  int;
-	onCampusStudents  int;
-	offCampusStudents int;
+   peopleInThisGroup int;
+   dailyTestingLoad  int;
+   onCampusStudents  int;
+   offCampusStudents int;
    employees         int;
    weekEndStudents   int;
    weekDayStudents   int;
-	weekDayCommuters  int;
-	weekDayEmployees  int;
+   weekDayCommuters  int;
+   weekDayEmployees  int;
    _inviteTime       time without time zone;
    _inviteDate       date;
    _inviteDateTime   timestamp without time zone;
    _inviteOffset     interval;
    personRow         record;
-	endDate           date;
-	currentDate       date;
-	dayKind           text;
+   endDate           date;
+   currentDate       date;
+   dayKind           text;
 begin
    -- Reset (create a new) workTable if necessary.
-	if resetWorkTable then
-		drop table if exists workTable;
-		create table workTable  
-		as
-		select null::text as "monitorGroup",
-				 null::timestamp as "inviteDate",
-				 null::text as "inviteDateText",
-				 p.pid, 
-				 p.firstName, 
-				 p.lastName, 
-				 coalesce(p.email1, '') as "email1", 
-				 coalesce(p.email2, '') as "email2",
-				 coalesce(p.phone1, '') as "phone1", 
-				 coalesce(p.phone2, '') as "phone2",
-				 p.isStudent,
-				 p.isEmployee,			 
-				 p.livesOnCampus,
-				 p.major,
-				 p.dormBuilding,  
-				 p.dormFloor,
-				 p.dormRoom,
-				 p.empDept,
-				 p.empTitle,
-				 p.empPhone
-		from PeopleToBeTested p
-		where false; 
+      if resetWorkTable then
+         drop table if exists workTable;
+         create table workTable  
+         as
+         select null::text as "monitorGroup",
+                null::timestamp as "inviteDate",
+                null::text as "inviteDateText",
+                p.pid, 
+                p.firstName, 
+                p.lastName, 
+                coalesce(p.email1, '') as "email1", 
+                coalesce(p.email2, '') as "email2",
+                coalesce(p.phone1, '') as "phone1", 
+                coalesce(p.phone2, '') as "phone2",
+                p.isStudent,
+                p.isEmployee,			 
+                p.livesOnCampus,
+                p.major,
+                p.dormBuilding,  
+                p.dormFloor,
+                p.dormRoom,
+                p.empDept,
+                p.empTitle,
+                p.empPhone
+         from PeopleToBeTested p
+         where false; 
    end if;
-	
+
    -- Set some parameters.
    groupSize   := 80; -- people per time slot.
    groupTime   := 20; -- minuntes per slot.
    startTimeWeekDAY := '4:00pm';  -- 16:00:00
-	startTimeWeekEND := '10:00am'; -- 10:00:00
+   startTimeWeekEND := '10:00am'; -- 10:00:00
 	
-	-- Compute the rest.
+   -- Compute the rest.
    currentDate := startDate;
-	endDate := startDate + interval '6 days';
+   endDate := startDate + interval '6 days';
 	
-	peopleInThisGroup := (select count(p.pid) from PeopleToBeTested p where p.monitorGroup = theGroup);
-	dailyTestingLoad  := peopleInThisGroup / 5;  -- We'll rely on the integer data type to make this work and cause rounding (or truncation). See below.
-	onCampusStudents  := (select count(p.pid) from PeopleToBeTested p where p.monitorGroup = theGroup and p.isStudent and p.livesOnCampus);
-	offCampusStudents := (select count(p.pid) from PeopleToBeTested p where p.monitorGroup = theGroup and p.isStudent and not p.livesOnCampus);
+   peopleInThisGroup := (select count(p.pid) from PeopleToBeTested p where p.monitorGroup = theGroup);
+   dailyTestingLoad  := peopleInThisGroup / 5;  -- We'll rely on the integer data type to make this work and cause rounding (or truncation). See below.
+   onCampusStudents  := (select count(p.pid) from PeopleToBeTested p where p.monitorGroup = theGroup and p.isStudent and p.livesOnCampus);
+   offCampusStudents := (select count(p.pid) from PeopleToBeTested p where p.monitorGroup = theGroup and p.isStudent and not p.livesOnCampus);
    employees         := (select count(p.pid) from PeopleToBeTested p where p.monitorGroup = theGroup and not p.isStudent and not p.livesOnCampus and p.isEmployee);
 
    raise notice '% non-excluded people in monitor group % means the testing load is % people per week day.', peopleInThisGroup, theGroup, dailyTestingLoad;
-	raise notice 'There are % non-excluded on-campus students, % non-excluded off-campus students, and % non-excluded employees in group %.', onCampusStudents, offCampusStudents, employees ,theGroup;
+   raise notice 'There are % non-excluded on-campus students, % non-excluded off-campus students, and % non-excluded employees in group %.', onCampusStudents, offCampusStudents, employees ,theGroup;
 	
-	weekEndStudents  := dailyTestingLoad;  -- We only test on-campus students on the weekends.
+   weekEndStudents  := dailyTestingLoad;  -- We only test on-campus students on the weekends.
    weekDayStudents  := 1 + (onCampusStudents - (weekEndStudents * 2)) / 5;
-	weekDayCommuters := 1 + (offCampusStudents / 5);
-	weekDayEmployees := 1 + (employees / 5);
-	-- We add 1 to the above three assignments to account for the rounding/truncation error caused by int division.
+   weekDayCommuters := 1 + (offCampusStudents / 5);
+   weekDayEmployees := 1 + (employees / 5);
+   -- We add 1 to the above three assignments to account for the rounding/truncation error caused by int division.
 	
-	raise notice 'Testing % on-campus students every weekEND.', weekEndStudents;
-	raise notice 'Testing % on-campus students every weekDAY.', weekDayStudents;
-	raise notice 'Testing % off-campus commuters every weekDAY.', weekDayCommuters;
-	raise notice 'Testing % employees every weekDAY.', weekDayEmployees;
+   raise notice 'Testing % on-campus students every weekEND.', weekEndStudents;
+   raise notice 'Testing % on-campus students every weekDAY.', weekDayStudents;
+   raise notice 'Testing % off-campus commuters every weekDAY.', weekDayCommuters;
+   raise notice 'Testing % employees every weekDAY.', weekDayEmployees;
 
-	raise notice 'Generating test invitation times in groups of size % spaced % minutes apart', groupSize, groupTime;
+   raise notice 'Generating test invitation times in groups of size % spaced % minutes apart', groupSize, groupTime;
    raise notice 'starting at % on weekdays and % on weekends.', startTimeWeekDAY, startTimeWeekEND;
 
-	-- Loop over the week from start date to the end date.
+   -- Loop over the week from start date to the end date.
    while currentDate <= endDate loop
-	   groupCount := 0;
-	   
-		if (lower(trim(to_char(currentDate, 'Day'))) = 'saturday') or 
-		   (lower(trim(to_char(currentDate, 'Day'))) = 'sunday')   then 
-		   dayKind := 'weekEND';
-			
-			-- It's a weekEND so we want <weekEndStudents> non-excluded on-campus students.
-			for personRow in ( select *
-									 from PeopleToBeTested p 
-									 where p.monitorGroup = theGroup
-									   and p.isStudent 
-									   and p.livesOnCampus 
-									   and p.pid not in (select w.pid from worktable w)
-									 order by p.dormBuilding ASC, 
-									 			 p.dormFloor ASC,  
-									 			 p.dormRoom ASC 
-									 limit weekEndStudents) loop
+      groupCount := 0;
+      
+      if (lower(trim(to_char(currentDate, 'Day'))) = 'saturday') or 
+         (lower(trim(to_char(currentDate, 'Day'))) = 'sunday')   then 
+         dayKind := 'weekEND';
+         
+         -- It's a weekEND so we want <weekEndStudents> non-excluded on-campus students.
+         for personRow in ( select *
+                            from PeopleToBeTested p 
+                            where p.monitorGroup = theGroup
+                              and p.isStudent 
+                              and p.livesOnCampus 
+                              and p.pid not in (select w.pid from worktable w)
+                            order by p.dormBuilding ASC, 
+                                     p.dormFloor ASC,  
+                                     p.dormRoom ASC 
+                            limit weekEndStudents) loop
 
-				_inviteOffset := ( (groupCount / groupSize) * groupTime) * interval '1' minute; -- "/" is the DIV operator.
-				_inviteTime := startTimeWeekEND + _inviteOffset;
+            _inviteOffset := ( (groupCount / groupSize) * groupTime) * interval '1' minute; -- "/" is the DIV operator.
+            _inviteTime := startTimeWeekEND + _inviteOffset;
             _inviteDate := currentDate;
-				_inviteDateTime := to_timestamp ( cast(_inviteDate as text) || ' ' || _inviteTime, 'YYYY-MM-DD HH24:MI:SS');
+            _inviteDateTime := to_timestamp ( cast(_inviteDate as text) || ' ' || _inviteTime, 'YYYY-MM-DD HH24:MI:SS');
 
-				insert into worktable
-				select theGroup as "monitorGroup",
-				       _inviteDateTime as "inviteDate",
-						 to_char(_inviteDateTime, 'FMDay, FMMonth FMDDth, YYYY at FMHH12:MI pm') as "inviteDateText",
-						 p.pid, 
-						 p.firstName, 
-						 p.lastName, 
-						 coalesce(p.email1, '') as "email1", 
-						 coalesce(p.email2, '') as "email2",
-						 coalesce(p.phone1, '') as "phone1", 
-						 coalesce(p.phone2, '') as "phone2",
-						 p.isStudent,
-						 p.isEmployee,			 
-						 p.livesOnCampus,
-						 p.major,
-						 p.dormBuilding,  
-						 p.dormFloor,
-						 p.dormRoom,
-						 p.empDept,
-						 p.empTitle,
-						 p.empPhone
-				from PeopleToBeTested p
-				where p.pid = personRow.pid; 
+            insert into worktable
+            select theGroup as "monitorGroup",
+                   _inviteDateTime as "inviteDate",
+                   to_char(_inviteDateTime, 'FMDay, FMMonth FMDDth, YYYY at FMHH12:MI pm') as "inviteDateText",
+                   p.pid, 
+                   p.firstName, 
+                   p.lastName, 
+                   coalesce(p.email1, '') as "email1", 
+                   coalesce(p.email2, '') as "email2",
+                   coalesce(p.phone1, '') as "phone1", 
+                   coalesce(p.phone2, '') as "phone2",
+                   p.isStudent,
+                   p.isEmployee,        
+                   p.livesOnCampus,
+                   p.major,
+                   p.dormBuilding,  
+                   p.dormFloor,
+                   p.dormRoom,
+                   p.empDept,
+                   p.empTitle,
+                   p.empPhone
+            from PeopleToBeTested p
+            where p.pid = personRow.pid; 
 
-				groupCount := groupCount + 1;			
-			end loop; -- for personRow 
-		
-		else -- It's a weekDAY		
-		   dayKind := 'weekDAY';
+            groupCount := groupCount + 1;       
+         end loop; -- for personRow 
+      
+      else -- It's a weekDAY     
+         dayKind := 'weekDAY';
 
-			-- It's a weekDAY so we want <weekDayStudents>  non-excluded on-campus  students,
-			--                           <weekDayCommuters> non-excluded off-campus students, and
-			--                           <weekDayEmployees> non-excluded employees
+         -- It's a weekDAY so we want <weekDayStudents>  non-excluded on-campus  students,
+         --                           <weekDayCommuters> non-excluded off-campus students, and
+         --                           <weekDayEmployees> non-excluded employees
 
-			-- FIRST: <weekDayEmployees> employees by zip code
-			for personRow in ( select *
-									 from PeopleToBeTested p 
-									 where p.monitorGroup = theGroup
-									   and not p.isStudent 
-									   and not p.livesOnCampus 
-									   and p.isEmployee
-									   and p.pid not in (select w.pid from worktable w)
-									 order by p.zipCode ASC
-									 limit weekDayEmployees) loop
-			
-				_inviteOffset := ( (groupCount / groupSize) * groupTime) * interval '1' minute; -- "/" is the DIV operator.
-				_inviteTime := startTimeWeekDAY + _inviteOffset;
-				_inviteDate := currentDate;
-				_inviteDateTime := to_timestamp ( cast(_inviteDate as text) || ' ' || _inviteTime, 'YYYY-MM-DD HH24:MI:SS');
+         -- FIRST: <weekDayEmployees> employees by zip code
+         for personRow in ( select *
+                            from PeopleToBeTested p 
+                            where p.monitorGroup = theGroup
+                              and not p.isStudent 
+                              and not p.livesOnCampus 
+                              and p.isEmployee
+                              and p.pid not in (select w.pid from worktable w)
+                            order by p.zipCode ASC
+                            limit weekDayEmployees) loop
+         
+            _inviteOffset := ( (groupCount / groupSize) * groupTime) * interval '1' minute; -- "/" is the DIV operator.
+            _inviteTime := startTimeWeekDAY + _inviteOffset;
+            _inviteDate := currentDate;
+            _inviteDateTime := to_timestamp ( cast(_inviteDate as text) || ' ' || _inviteTime, 'YYYY-MM-DD HH24:MI:SS');
 
-				insert into worktable
-				select theGroup as "monitorGroup",
-				       _inviteDateTime as "inviteDate",
-						 to_char(_inviteDateTime, 'FMDay, FMMonth FMDDth, YYYY at FMHH12:MI pm') as "inviteDateText",
-						 p.pid, 
-						 p.firstName, 
-						 p.lastName, 
-						 coalesce(p.email1, '') as "email1", 
-						 coalesce(p.email2, '') as "email2",
-						 coalesce(p.phone1, '') as "phone1", 
-						 coalesce(p.phone2, '') as "phone2",
-						 p.isStudent,
-						 p.isEmployee,			 
-						 p.livesOnCampus,
-						 p.major,
-						 p.dormBuilding,  
-						 p.dormFloor,
-						 p.dormRoom,
-						 p.empDept,
-						 p.empTitle,
-						 p.empPhone
-				from PeopleToBeTested p
-				where p.pid = personRow.pid; 
+            insert into worktable
+            select theGroup as "monitorGroup",
+                   _inviteDateTime as "inviteDate",
+                   to_char(_inviteDateTime, 'FMDay, FMMonth FMDDth, YYYY at FMHH12:MI pm') as "inviteDateText",
+                   p.pid, 
+                   p.firstName, 
+                   p.lastName, 
+                   coalesce(p.email1, '') as "email1", 
+                   coalesce(p.email2, '') as "email2",
+                   coalesce(p.phone1, '') as "phone1", 
+                   coalesce(p.phone2, '') as "phone2",
+                   p.isStudent,
+                   p.isEmployee,        
+                   p.livesOnCampus,
+                   p.major,
+                   p.dormBuilding,  
+                   p.dormFloor,
+                   p.dormRoom,
+                   p.empDept,
+                   p.empTitle,
+                   p.empPhone
+            from PeopleToBeTested p
+            where p.pid = personRow.pid; 
 
-				groupCount := groupCount + 1;			
-			end loop; -- for personRow 
+            groupCount := groupCount + 1;       
+         end loop; -- for personRow 
 
-			-- SECOND: <weekDayCommuters> off-campus students by zip code
-			for personRow in ( select *
-									 from PeopleToBeTested p 
-									 where p.monitorGroup = theGroup
-									   and p.isStudent 
-									   and not p.livesOnCampus 
-									   and p.pid not in (select w.pid from worktable w)
-									 order by p.zipCode ASC
-									 limit weekDayCommuters) loop
-			
-				_inviteOffset := ( (groupCount / groupSize) * groupTime) * interval '1' minute; -- "/" is the DIV operator.
-				_inviteTime := startTimeWeekDAY + _inviteOffset;
-				_inviteDate := currentDate;
-				_inviteDateTime := to_timestamp ( cast(_inviteDate as text) || ' ' || _inviteTime, 'YYYY-MM-DD HH24:MI:SS');
+         -- SECOND: <weekDayCommuters> off-campus students by zip code
+         for personRow in ( select *
+                            from PeopleToBeTested p 
+                            where p.monitorGroup = theGroup
+                              and p.isStudent 
+                              and not p.livesOnCampus 
+                              and p.pid not in (select w.pid from worktable w)
+                            order by p.zipCode ASC
+                            limit weekDayCommuters) loop
+         
+            _inviteOffset := ( (groupCount / groupSize) * groupTime) * interval '1' minute; -- "/" is the DIV operator.
+            _inviteTime := startTimeWeekDAY + _inviteOffset;
+            _inviteDate := currentDate;
+            _inviteDateTime := to_timestamp ( cast(_inviteDate as text) || ' ' || _inviteTime, 'YYYY-MM-DD HH24:MI:SS');
 
-				insert into worktable
-				select theGroup as "monitorGroup",
-				       _inviteDateTime as "inviteDate",
-						 to_char(_inviteDateTime, 'FMDay, FMMonth FMDDth, YYYY at FMHH12:MI pm') as "inviteDateText",
-						 p.pid, 
-						 p.firstName, 
-						 p.lastName, 
-						 coalesce(p.email1, '') as "email1", 
-						 coalesce(p.email2, '') as "email2",
-						 coalesce(p.phone1, '') as "phone1", 
-						 coalesce(p.phone2, '') as "phone2",
-						 p.isStudent,
-						 p.isEmployee,			 
-						 p.livesOnCampus,
-						 p.major,
-						 p.dormBuilding,  
-						 p.dormFloor,
-						 p.dormRoom,
-						 p.empDept,
-						 p.empTitle,
-						 p.empPhone
-				from PeopleToBeTested p
-				where p.pid = personRow.pid; 
+            insert into worktable
+            select theGroup as "monitorGroup",
+                   _inviteDateTime as "inviteDate",
+                   to_char(_inviteDateTime, 'FMDay, FMMonth FMDDth, YYYY at FMHH12:MI pm') as "inviteDateText",
+                   p.pid, 
+                   p.firstName, 
+                   p.lastName, 
+                   coalesce(p.email1, '') as "email1", 
+                   coalesce(p.email2, '') as "email2",
+                   coalesce(p.phone1, '') as "phone1", 
+                   coalesce(p.phone2, '') as "phone2",
+                   p.isStudent,
+                   p.isEmployee,        
+                   p.livesOnCampus,
+                   p.major,
+                   p.dormBuilding,  
+                   p.dormFloor,
+                   p.dormRoom,
+                   p.empDept,
+                   p.empTitle,
+                   p.empPhone
+            from PeopleToBeTested p
+            where p.pid = personRow.pid; 
 
-				groupCount := groupCount + 1;			
-			end loop; -- for personRow 
+            groupCount := groupCount + 1;       
+         end loop; -- for personRow 
 
-			-- THIRD: <weekDayStudents> on-campus students by dorm room
-			for personRow in ( select *
-									 from PeopleToBeTested p 
-									 where p.monitorGroup = theGroup
-									   and p.isStudent 
-									   and p.livesOnCampus 
-									   and p.pid not in (select w.pid from worktable w)
-									 order by p.dormBuilding ASC, 
-									 			 p.dormFloor ASC,  
-									 			 p.dormRoom ASC 
-									 limit weekDayStudents) loop
-			
-				_inviteOffset := ( (groupCount / groupSize) * groupTime) * interval '1' minute; -- "/" is the DIV operator.
-				_inviteTime := startTimeWeekDAY + _inviteOffset;
-				_inviteDate := currentDate;
-				_inviteDateTime := to_timestamp ( cast(_inviteDate as text) || ' ' || _inviteTime, 'YYYY-MM-DD HH24:MI:SS');
+         -- THIRD: <weekDayStudents> on-campus students by dorm room
+         for personRow in ( select *
+                            from PeopleToBeTested p 
+                            where p.monitorGroup = theGroup
+                              and p.isStudent 
+                              and p.livesOnCampus 
+                              and p.pid not in (select w.pid from worktable w)
+                            order by p.dormBuilding ASC, 
+                                     p.dormFloor ASC,  
+                                     p.dormRoom ASC 
+                            limit weekDayStudents) loop
+         
+            _inviteOffset := ( (groupCount / groupSize) * groupTime) * interval '1' minute; -- "/" is the DIV operator.
+            _inviteTime := startTimeWeekDAY + _inviteOffset;
+            _inviteDate := currentDate;
+            _inviteDateTime := to_timestamp ( cast(_inviteDate as text) || ' ' || _inviteTime, 'YYYY-MM-DD HH24:MI:SS');
 
-				insert into worktable
-				select theGroup as "monitorGroup",
-				       _inviteDateTime as "inviteDate",
-						 to_char(_inviteDateTime, 'FMDay, FMMonth FMDDth, YYYY at FMHH12:MI pm') as "inviteDateText",
-						 p.pid, 
-						 p.firstName, 
-						 p.lastName, 
-						 coalesce(p.email1, '') as "email1", 
-						 coalesce(p.email2, '') as "email2",
-						 coalesce(p.phone1, '') as "phone1", 
-						 coalesce(p.phone2, '') as "phone2",
-						 p.isStudent,
-						 p.isEmployee,			 
-						 p.livesOnCampus,
-						 p.major,
-						 p.dormBuilding,  
-						 p.dormFloor,
-						 p.dormRoom,
-						 p.empDept,
-						 p.empTitle,
-						 p.empPhone
-				from PeopleToBeTested p
-				where p.pid = personRow.pid; 
+            insert into worktable
+            select theGroup as "monitorGroup",
+                   _inviteDateTime as "inviteDate",
+                   to_char(_inviteDateTime, 'FMDay, FMMonth FMDDth, YYYY at FMHH12:MI pm') as "inviteDateText",
+                   p.pid, 
+                   p.firstName, 
+                   p.lastName, 
+                   coalesce(p.email1, '') as "email1", 
+                   coalesce(p.email2, '') as "email2",
+                   coalesce(p.phone1, '') as "phone1", 
+                   coalesce(p.phone2, '') as "phone2",
+                   p.isStudent,
+                   p.isEmployee,        
+                   p.livesOnCampus,
+                   p.major,
+                   p.dormBuilding,  
+                   p.dormFloor,
+                   p.dormRoom,
+                   p.empDept,
+                   p.empTitle,
+                   p.empPhone
+            from PeopleToBeTested p
+            where p.pid = personRow.pid; 
 
-				groupCount := groupCount + 1;			
-			end loop; -- for personRow 
+            groupCount := groupCount + 1;       
+         end loop; -- for personRow 
 
-		end if; -- It's a weekEND or a weekDAY
+      end if; -- It's a weekEND or a weekDAY
 
-		raise notice 'Processed % %, a %. Group count = %', to_char(currentDate, 'Day'), currentDate, dayKind, groupCount;
-		
-		currentDate := currentDate + interval '1 day';				
-	end loop; -- while currentDate <= endDate
-	
-	-- That's it; we're done. Return the table.
+      raise notice 'Processed % %, a %. Group count = %', to_char(currentDate, 'Day'), currentDate, dayKind, groupCount;
+      
+      currentDate := currentDate + interval '1 day';           
+   end loop; -- while currentDate <= endDate
+   
+   -- That's it; we're done. Return the table.
    return query (select * from workTable); 
 end;
 $$
@@ -432,23 +432,22 @@ group by "inviteDate", "monitorGroup", dormBuilding
 order by "inviteDate" ASC,
          dormBuilding ASC;
 
-
 -- If everything looks good, make the files for the IT Team.
 copy (select '' as "monitorGroup",
-				 dormBuilding,  
-				 pid, 
-				 coalesce(email1, '') as "email1", 
-				 '' as "inviteDateText",
-				 '' as "inviteDate", 
-				 '' as "unused2",
-				 lastName, 
-				 firstName, 
-				 coalesce(phone1, '') as "phone1", 
-				 coalesce(phone2, '') as "phone2",
-				 coalesce(email2, '') as "email2",       
-				 dormFloor,
-				 dormRoom,
-				 major
+             dormBuilding,  
+             pid, 
+             coalesce(email1, '') as "email1", 
+             '' as "inviteDateText",
+             '' as "inviteDate", 
+             '' as "unused2",
+             lastName, 
+             firstName, 
+             coalesce(phone1, '') as "phone1", 
+             coalesce(phone2, '') as "phone2",
+             coalesce(email2, '') as "email2",       
+             dormFloor,
+             dormRoom,
+             major
       from workTable
       order by "inviteDate" ASC,
                dormBuilding ASC,		
